@@ -19,6 +19,7 @@
     --tomas: #e8844b;
     --granjas: #5b8dee;
     --mario: #9c6fe8;
+    --roberto: #4ec9c0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; min-height: 100vh; }
@@ -186,6 +187,7 @@
     <button onclick="showPage('tomas')" id="nav-tomas" class=""><span class="icon">🏗️</span> Tomás</button>
     <button onclick="showPage('granjas')" id="nav-granjas" class=""><span class="icon">🚜</span> Granjas Multif.</button>
     <button onclick="showPage('mario')" id="nav-mario" class=""><span class="icon">👷</span> Contratista Mario</button>
+    <button onclick="showPage('roberto')" id="nav-roberto" class=""><span class="icon">🏗️</span> Obra Roberto</button>
     <button onclick="showPage('obras')" id="nav-obras" class="active"><span class="icon">🏠</span> Obras Propias</button>
     <button onclick="showPage('banco')" id="nav-banco" class=""><span class="icon">💳</span> Banco / Gastos</button>
     <button onclick="showPage('trabajadores')" id="nav-trabajadores" class=""><span class="icon">👷</span> Trabajadores</button>
@@ -2000,6 +2002,25 @@
     </div>
   </div>
 
+  <!-- ========== OBRA ROBERTO ========== -->
+  <div id="page-roberto" class="hidden">
+    <div class="page-header">
+      <div><div class="page-title">OBRA ROBERTO</div><div class="page-subtitle">Precio por día/hombre configurable en Tarifas · Resumen mensual</div></div>
+    </div>
+    <div class="cards-grid" id="roberto-cards"></div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <div class="table-header"><span class="table-title">Obras ejecutadas</span></div>
+      <table>
+        <thead><tr><th>Obra</th><th>Días/Hombre</th><th>Trabajadores</th><th>Total €</th></tr></thead>
+        <tbody id="roberto-tabla"></tbody>
+      </table>
+    </div>
+    <div class="form-section" style="background:rgba(78,201,192,.06);border-color:rgba(78,201,192,.2);">
+      <h3 style="color:var(--roberto);">📄 Factura del mes</h3>
+      <div id="roberto-factura"></div>
+    </div>
+  </div>
+
   <!-- ========== OBRAS PROPIAS ========== -->
   <div id="page-obras" class="">
     <div class="page-header">
@@ -2455,6 +2476,11 @@
         <input type="number" id="tar-mario" step="1" style="margin-top:6px;">
       </div>
       <div class="form-section">
+        <h3>🏗️ Tarifa Obra Roberto</h3>
+        <label>Precio por día/hombre (€)</label>
+        <input type="number" id="tar-roberto" step="1" style="margin-top:6px;">
+      </div>
+      <div class="form-section">
         <h3>👷 Autónomos externos</h3>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">80€/día = 10€/hora equivalente</div>
         <div class="form-row">
@@ -2546,6 +2572,7 @@ const DATA_BUILD = 'v2026-08-05-limpieza-julio';
 let TARIFA_TOMAS = 160;
 let TARIFA_GRANJAS = 180;
 let TARIFA_MARIO = 180;
+let TARIFA_ROBERTO = 180;
 const TARIFA_AUTONOMO_DIA = 80;
 const TARIFA_AUTONOMO_HORA = TARIFA_AUTONOMO_DIA / 8;
 let COSTE_EMPLEADO_EMPRESA = 2141.59;
@@ -3074,7 +3101,7 @@ function nuevoMes() {
 let paginaActual = 'resumen';
 function showPage(page) {
   paginaActual = page;
-  ['resumen','control','tomas','granjas','mario','obras','banco','trabajadores','tarifas'].forEach(p => {
+  ['resumen','control','tomas','granjas','mario','roberto','obras','banco','trabajadores','tarifas'].forEach(p => {
     document.getElementById('page-'+p).classList.add('hidden');
     document.getElementById('nav-'+p).classList.remove('active');
   });
@@ -3091,6 +3118,7 @@ function renderPage(page) {
   if (page === 'tomas') renderTomas();
   if (page === 'granjas') renderContratistaPage('granjas', TARIFA_GRANJAS, 'granjas', 'var(--granjas)');
   if (page === 'mario') renderContratistaPage('mario', TARIFA_MARIO, 'mario', 'var(--mario)');
+  if (page === 'roberto') renderContratistaPage('roberto', TARIFA_ROBERTO, 'roberto', 'var(--roberto)');
   if (page === 'obras') renderObras();
   if (page === 'banco') renderBanco();
   if (page === 'trabajadores') renderTrabajadores();
@@ -3102,6 +3130,7 @@ function aplicarConfig() {
   TARIFA_TOMAS = cfg.tarifa_tomas || 160;
   TARIFA_GRANJAS = cfg.tarifa_granjas || 180;
   TARIFA_MARIO = cfg.tarifa_mario || 180;
+  TARIFA_ROBERTO = cfg.tarifa_roberto || 180;
   COSTE_EMPLEADO_EMPRESA = cfg.coste_empleado || 2141.59;
   SALARIO_RAIDEL = cfg.salario_raidel || 3000;
   SALARIO_DANIELA = cfg.salario_daniela || 1500;
@@ -3123,6 +3152,7 @@ function renderTarifas() {
   document.getElementById('tar-tomas').value = cfg.tarifa_tomas || 160;
   document.getElementById('tar-granjas').value = cfg.tarifa_granjas || 180;
   document.getElementById('tar-mario').value = cfg.tarifa_mario || 180;
+  document.getElementById('tar-roberto').value = cfg.tarifa_roberto || 180;
   document.getElementById('tar-pepe').value = cfg.tarifa_pepe || 80;
   document.getElementById('tar-pocholo').value = cfg.tarifa_pocholo || 80;
   document.getElementById('tar-celso').value = cfg.tarifa_celso || 80;
@@ -3142,6 +3172,7 @@ function guardarTarifas() {
   DATA.config.tarifa_tomas = parseFloat(document.getElementById('tar-tomas').value) || 160;
   DATA.config.tarifa_granjas = parseFloat(document.getElementById('tar-granjas').value) || 180;
   DATA.config.tarifa_mario = parseFloat(document.getElementById('tar-mario').value) || 180;
+  DATA.config.tarifa_roberto = parseFloat(document.getElementById('tar-roberto').value) || 180;
   DATA.config.tarifa_pepe = parseFloat(document.getElementById('tar-pepe').value) || 80;
   DATA.config.tarifa_pocholo = parseFloat(document.getElementById('tar-pocholo').value) || 80;
   DATA.config.tarifa_celso = parseFloat(document.getElementById('tar-celso').value) || 80;
@@ -3295,6 +3326,7 @@ function renderResumen() {
   const tomas = calcTomasTotal();
   const granjas = calcContratistaTotal('granjas', TARIFA_GRANJAS);
   const mario = calcContratistaTotal('mario', TARIFA_MARIO);
+  const roberto = calcContratistaTotal('roberto', TARIFA_ROBERTO);
   const movs = getMovimientos();
   const obras = getObras();
   const obrasCost = calcObrasCost();
@@ -3325,6 +3357,7 @@ function renderResumen() {
     { label: 'Cobro a Tomás', value: fmt(tomas.totalMes), sub: tomas.obras.length + ' obras', cls: 'tomas' },
     { label: 'Cobro Granjas Multif.', value: fmt(granjas.totalMes), sub: granjas.obras.length + ' obras', cls: '' },
     { label: 'Cobro Contratista Mario', value: fmt(mario.totalMes), sub: mario.obras.length + ' obras', cls: '' },
+    { label: 'Cobro Obra Roberto', value: fmt(roberto.totalMes), sub: roberto.obras.length + ' obras', cls: '' },
     { label: 'Ingresos Banco', value: fmt(totalIngresos), sub: 'este mes', cls: 'green' },
     { label: 'Gastos Banco', value: fmt(totalGastos), sub: 'este mes', cls: 'red' },
     { label: 'Saldo Cierre', value: fmt(saldoCierre), sub: 'saldo real en banco', cls: saldoCierre >= 0 ? 'green' : 'red' },
