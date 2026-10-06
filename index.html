@@ -186,7 +186,7 @@
     <button onclick="showPage('control')" id="nav-control" class=""><span class="icon">📅</span> Control Diario</button>
     <button onclick="showPage('tomas')" id="nav-tomas" class=""><span class="icon">🏗️</span> Tomás</button>
     <button onclick="showPage('granjas')" id="nav-granjas" class=""><span class="icon">🚜</span> Granjas Multif.</button>
-    <button onclick="showPage('mario')" id="nav-mario" class=""><span class="icon">👷</span> Contratista Mario</button>
+    <button onclick="showPage('mario')" id="nav-mario" class=""><span class="icon">👷</span> Contratista José de Cangas</button>
     <button onclick="showPage('roberto')" id="nav-roberto" class=""><span class="icon">🏗️</span> Obra Roberto</button>
     <button onclick="showPage('obras')" id="nav-obras" class="active"><span class="icon">🏠</span> Obras Propias</button>
     <button onclick="showPage('banco')" id="nav-banco" class=""><span class="icon">💳</span> Banco / Gastos</button>
@@ -216,7 +216,7 @@
       <div class="sub">1 obras</div>
     </div>
     <div class="card ">
-      <div class="label">Cobro Contratista Mario</div>
+      <div class="label">Cobro Contratista José de Cangas</div>
       <div class="value">0,00&nbsp;€</div>
       <div class="sub">0 obras</div>
     </div>
@@ -427,7 +427,7 @@
             <option value="tomas">Obra de Tomás</option>
             <option value="propia">Obra Propia</option>
             <option value="granjas">Contratistas Granjas Multifuncionales</option>
-            <option value="mario">Contratista Mario</option>
+            <option value="mario">Contratista José de Cangas</option>
             <option value="roberto">Obra Roberto</option>
           </select>
         </div>
@@ -479,7 +479,7 @@
               <option value="tomas">Tomás</option>
               <option value="propia">Propia</option>
               <option value="granjas">Contratistas Granjas Multifuncionales</option>
-              <option value="mario">Contratista Mario</option>
+              <option value="mario">Contratista José de Cangas</option>
               <option value="roberto">Obra Roberto</option>
             </select>
           </div>
@@ -1983,10 +1983,10 @@
     </div>
   </div>
 
-  <!-- ========== CONTRATISTA MARIO ========== -->
+  <!-- ========== CONTRATISTA JOSÉ DE CANGAS ========== -->
   <div id="page-mario" class="hidden">
     <div class="page-header">
-      <div><div class="page-title">CONTRATISTA MARIO</div><div class="page-subtitle">180 € por día/hombre · Resumen mensual</div></div>
+      <div><div class="page-title">CONTRATISTA JOSÉ DE CANGAS</div><div class="page-subtitle">180 € por día/hombre · Resumen mensual</div></div>
     </div>
     <div class="cards-grid" id="mario-cards"></div>
     <div class="table-wrap" style="margin-bottom:20px;">
@@ -2471,7 +2471,7 @@
         <input type="number" id="tar-granjas" step="1" style="margin-top:6px;">
       </div>
       <div class="form-section">
-        <h3>👷 Tarifa Contratista Mario</h3>
+        <h3>👷 Tarifa Contratista José de Cangas</h3>
         <label>Precio por día/hombre (€)</label>
         <input type="number" id="tar-mario" step="1" style="margin-top:6px;">
       </div>
@@ -2542,7 +2542,7 @@
             <option value="tomas">Obra de Tomás</option>
             <option value="propia">Obra Propia</option>
             <option value="granjas">Contratistas Granjas Multifuncionales</option>
-            <option value="mario">Contratista Mario</option>
+            <option value="mario">Contratista José de Cangas</option>
             <option value="roberto">Obra Roberto</option>
           </select>
         </div>
@@ -3216,7 +3216,7 @@ function calcContratistaTotal(tipo, tarifa) {
 
 function calcTomasTotal() { return calcContratistaTotal('tomas', TARIFA_TOMAS); }
 
-// Renderiza la página de un contratista nuevo (Granjas, Mario) — misma lógica
+// Renderiza la página de un contratista nuevo (Granjas, José de Cangas) — misma lógica
 // que la página de Tomás, pero con su propia tarifa por día/hombre y color.
 function renderContratistaPage(tipo, tarifa, prefix, colorCss) {
   const datos = calcContratistaTotal(tipo, tarifa);
@@ -3356,7 +3356,7 @@ function renderResumen() {
   const cards = [
     { label: 'Cobro a Tomás', value: fmt(tomas.totalMes), sub: tomas.obras.length + ' obras', cls: 'tomas' },
     { label: 'Cobro Granjas Multif.', value: fmt(granjas.totalMes), sub: granjas.obras.length + ' obras', cls: '' },
-    { label: 'Cobro Contratista Mario', value: fmt(mario.totalMes), sub: mario.obras.length + ' obras', cls: '' },
+    { label: 'Cobro Contratista José de Cangas', value: fmt(mario.totalMes), sub: mario.obras.length + ' obras', cls: '' },
     { label: 'Cobro Obra Roberto', value: fmt(roberto.totalMes), sub: roberto.obras.length + ' obras', cls: '' },
     { label: 'Ingresos Banco', value: fmt(totalIngresos), sub: 'este mes', cls: 'green' },
     { label: 'Gastos Banco', value: fmt(totalGastos), sub: 'este mes', cls: 'red' },
@@ -3548,7 +3548,7 @@ const TIPOS_OBRA = [
   { val: 'tomas',   label: 'Obra de Tomás' },
   { val: 'propia',  label: 'Obra Propia' },
   { val: 'granjas', label: 'Contratistas Granjas Multifuncionales' },
-  { val: 'mario',   label: 'Contratista Mario' },
+  { val: 'mario',   label: 'Contratista José de Cangas' },
   { val: 'roberto', label: 'Obra Roberto' },
 ];
 
