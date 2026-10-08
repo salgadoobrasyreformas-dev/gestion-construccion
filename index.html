@@ -76,6 +76,19 @@
   td { padding: 10px 16px; border-bottom: 1px solid #1f1f1f; font-size: 13px; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #1e1e1e; }
+
+  /* NOTAS (Control Diario) */
+  th.th-nota { color: var(--accent); min-width: 220px; }
+  td.td-nota { min-width: 220px; max-width: 340px; vertical-align: top; }
+  .nota-input { width: 100%; min-height: 32px; resize: none; overflow: hidden; display: block; background: transparent; border: 1px dashed var(--border); border-radius: 6px; color: var(--text); font-family: inherit; font-size: 13px; line-height: 1.35; padding: 6px 8px; }
+  .nota-input::placeholder { color: #555; }
+  .nota-input:focus { outline: none; border: 1px solid var(--accent); background: var(--surface2); }
+  .nota-input.con-nota { background: rgba(232,184,75,.14); border: 1px solid rgba(232,184,75,.55); border-left: 4px solid var(--accent); color: #ffe7a8; font-weight: 600; }
+  .nota-estado { font-size: 10px; margin-top: 3px; min-height: 12px; color: var(--muted); }
+  .nota-estado.ok { color: var(--green); }
+  .nota-estado.aviso { color: var(--tomas); }
+  .filtro-notas { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent); cursor: pointer; white-space: nowrap; }
+  .filtro-notas input { width: auto; accent-color: var(--accent); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge-tomas { background: rgba(232,132,75,.15); color: var(--tomas); }
   .badge-propia { background: rgba(91,141,238,.15); color: var(--blue); }
@@ -470,7 +483,7 @@
               <option value="">Todos</option>
               <option>Raidel</option><option>Daniela</option><option>Pelao</option>
               <option>Freddy</option><option>Pepe</option><option>Pocholo</option>
-              <option>Celso</option><option>Jesús</option><option>Carlos nuevo</option>
+              <option>Celso</option><option>Jesús</option><option>Carlos nuevo</option><option>Carlos</option>
             </select>
           </div>
           <div><label>Tipo</label>
@@ -484,11 +497,12 @@
             </select>
           </div>
           <div><label>Obra</label><input type="text" id="f-obra" placeholder="buscar obra..." oninput="renderControl()" style="width:160px;"></div>
+          <div><label>&nbsp;</label><label class="filtro-notas"><input type="checkbox" id="f-notas" onchange="renderControl()"> 📝 Solo con nota</label></div>
           <button class="btn-clear" onclick="clearFilters()">✕ Limpiar filtros</button>
         </div>
       </div>
       <table>
-        <thead><tr><th>Fecha</th><th>Trabajador</th><th>Tipo</th><th>Obra</th><th>Horas</th><th>Coste/Cobro</th><th></th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Trabajador</th><th>Tipo</th><th>Obra</th><th>Horas</th><th class="th-nota">📝 Notas</th><th>Coste/Cobro</th><th></th></tr></thead>
         <tbody id="cd-tabla"><tr>
       <td>2026-08-25</td>
       <td>Pepe</td>
@@ -2495,6 +2509,9 @@
           <div><label>Yazmani €/día</label><input type="number" id="tar-yazmani" step="1"></div>
           <div><label>Willi €/día</label><input type="number" id="tar-willi" step="1"></div>
         </div>
+        <div class="form-row" style="margin-top:10px;">
+          <div><label>Carlos €/día</label><input type="number" id="tar-carlos" step="1"></div>
+        </div>
       </div>
       <div class="form-section">
         <h3>👔 Autónomos societarios</h3>
@@ -2535,6 +2552,7 @@
             <option value="Celso">Celso (autónomo)</option>
             <option value="Jesús">Jesús</option>
             <option value="Carlos nuevo">Carlos nuevo (autónomo)</option>
+            <option value="Carlos">Carlos (autónomo)</option>
           </select>
         </div>
         <div><label>Tipo</label>
@@ -2590,16 +2608,16 @@ const WORKERS_CONFIG = {
   'Celso':       { tipo: 'autonomo',     coste_hora: TARIFA_AUTONOMO_HORA, color: '#4ba3e8' },
   'Jesús':       { tipo: 'empleado',     coste_hora: COSTE_EMPLEADO_EMPRESA / (22*8), color: '#c58ae0' },
   'Carlos nuevo':{ tipo: 'autonomo',     coste_hora: TARIFA_AUTONOMO_HORA, color: '#7fbf8f' },
+  'Carlos':      { tipo: 'autonomo',     coste_hora: 160 / 8, color: '#d67ab8' }, // autónomo externo, 160 €/día (otra persona, no es "Carlos nuevo")
   'Yazmani':     { tipo: 'autonomo',     coste_hora: 0, color: '#e0b34b' },
   'Willi':       { tipo: 'autonomo',     coste_hora: 0, color: '#6fd6c5' },
 };
 
 // ========== NORMALIZACION DE NOMBRES DE TRABAJADOR ==========
 // Evita que variantes de mayúsculas/tildes o errores de escritura (p.ej. "celso", "jesus",
-// "carlos nuevo", "Carlos" sin "nuevo") se traten como trabajadores distintos de los
-// configurados en WORKERS_CONFIG.
+// "carlos nuevo") se traten como trabajadores distintos de los configurados en
+// WORKERS_CONFIG. OJO: "Carlos" y "Carlos nuevo" son dos personas distintas.
 const WORKER_ALIASES = {
-  'carlos': 'Carlos nuevo', // Carlos (sin "nuevo") es la misma persona
   'jesus': 'Jesús', // Jesus sin tilde y Jesús con tilde son la misma persona
   'yasmani': 'Yazmani',
   'yasmany': 'Yazmani',
@@ -2787,10 +2805,15 @@ function eliminarRegistrosDuplicados() {
       const clave = [r.fecha, r.trabajador, r.tipo, r.obra, r.horas].join('|');
       if (vistos.has(clave)) {
         cambios = true;
+        const conservado = vistos.get(clave);
+        if (r.notas && !conservado.notas) {
+          conservado.notas = r.notas;
+          if (conservado._supabaseId != null) conservado._notaPendiente = true;
+        }
         if (r._supabaseId != null) idsABorrarEnSupabase.push(r._supabaseId);
         return; // se descarta esta copia duplicada
       }
-      vistos.set(clave, true);
+      vistos.set(clave, r);
       nuevos.push(r);
     });
     mes.registros = nuevos;
@@ -2831,7 +2854,9 @@ function agregarRegistroADATA(row) {
     x.fecha === fecha && x.trabajador === trabajador && x.tipo === tipoLimpio &&
     x.obra === obraNorm && x.horas === horas);
   if (yaExiste) return false;
-  DATA[mesKey].registros.push({ fecha, trabajador, tipo: tipoLimpio, obra: obraNorm, horas, _supabaseId: row.id });
+  const nuevoRegistro = { fecha, trabajador, tipo: tipoLimpio, obra: obraNorm, horas, _supabaseId: row.id };
+  if (row.notas) nuevoRegistro.notas = String(row.notas).trim();
+  DATA[mesKey].registros.push(nuevoRegistro);
   return true;
 }
 
@@ -2872,6 +2897,9 @@ async function sincronizarPartes(silent) {
     let importados = 0;
     rows.forEach(r => { if (agregarRegistroADATA(r)) { importados++; cambios = true; } });
 
+    // 3) Notas: trae las de otros dispositivos y sube las pendientes de este
+    if (await sincronizarNotas(rows)) cambios = true;
+
     if (cambios) {
       eliminarRegistrosDuplicados();
       sincronizarObrasPropiasConRegistros();
@@ -2904,6 +2932,27 @@ function suscribirRealtimePartes() {
         saveData();
         buildMonthSelector();
         renderPage(typeof paginaActual !== 'undefined' ? paginaActual : 'resumen');
+      }
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partes_diarios' }, (payload) => {
+      const fila = payload.new;
+      if (!fila || fila.id == null || !('notas' in fila)) return;
+      const remota = (fila.notas || '').trim();
+      let cambios = false;
+      Object.keys(DATA).forEach(mesKey => {
+        const mes = DATA[mesKey];
+        if (!mes || !Array.isArray(mes.registros)) return;
+        mes.registros.forEach(r => {
+          if (r._supabaseId === fila.id && !r._notaPendiente && (r.notas || '') !== remota) { r.notas = remota; cambios = true; }
+        });
+      });
+      if (cambios) {
+        saveData();
+        // No se repinta la tabla si se está escribiendo una nota en este momento
+        const activo = document.activeElement;
+        if (!(activo && activo.classList && activo.classList.contains('nota-input'))) {
+          renderPage(typeof paginaActual !== 'undefined' ? paginaActual : 'resumen');
+        }
       }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'partes_diarios' }, (payload) => {
@@ -3143,6 +3192,7 @@ function aplicarConfig() {
   WORKERS_CONFIG['Pocholo'].coste_hora = (cfg.tarifa_pocholo || 80) / 8;
   WORKERS_CONFIG['Celso'].coste_hora = (cfg.tarifa_celso || 80) / 8;
   WORKERS_CONFIG['Carlos nuevo'].coste_hora = (cfg.tarifa_carlos_nuevo || 80) / 8;
+  WORKERS_CONFIG['Carlos'].coste_hora = (cfg.tarifa_carlos || 160) / 8;
   WORKERS_CONFIG['Yazmani'].coste_hora = (cfg.tarifa_yazmani || 0) / 8;
   WORKERS_CONFIG['Willi'].coste_hora = (cfg.tarifa_willi || 0) / 8;
 }
@@ -3157,6 +3207,7 @@ function renderTarifas() {
   document.getElementById('tar-pocholo').value = cfg.tarifa_pocholo || 80;
   document.getElementById('tar-celso').value = cfg.tarifa_celso || 80;
   document.getElementById('tar-carlos-nuevo').value = cfg.tarifa_carlos_nuevo || 80;
+  document.getElementById('tar-carlos').value = cfg.tarifa_carlos || 160;
   document.getElementById('tar-yazmani').value = cfg.tarifa_yazmani || 0;
   document.getElementById('tar-willi').value = cfg.tarifa_willi || 0;
   document.getElementById('tar-raidel').value = cfg.salario_raidel || 3000;
@@ -3177,6 +3228,7 @@ function guardarTarifas() {
   DATA.config.tarifa_pocholo = parseFloat(document.getElementById('tar-pocholo').value) || 80;
   DATA.config.tarifa_celso = parseFloat(document.getElementById('tar-celso').value) || 80;
   DATA.config.tarifa_carlos_nuevo = parseFloat(document.getElementById('tar-carlos-nuevo').value) || 80;
+  DATA.config.tarifa_carlos = parseFloat(document.getElementById('tar-carlos').value) || 160;
   DATA.config.tarifa_yazmani = parseFloat(document.getElementById('tar-yazmani').value) || 0;
   DATA.config.tarifa_willi = parseFloat(document.getElementById('tar-willi').value) || 0;
   DATA.config.salario_raidel = parseFloat(document.getElementById('tar-raidel').value) || 3000;
@@ -3463,6 +3515,7 @@ function updateDataLists() {
 function clearFilters() {
   ['f-fecha','f-obra'].forEach(id => document.getElementById(id).value = '');
   ['f-trabajador','f-tipo'].forEach(id => document.getElementById(id).value = '');
+  const fN = document.getElementById('f-notas'); if (fN) fN.checked = false;
   renderControl();
 }
 
@@ -3479,14 +3532,20 @@ function renderControl() {
   if (fTrabajador) filtered = filtered.filter(r => r.trabajador === fTrabajador);
   if (fTipo) filtered = filtered.filter(r => r.tipo === fTipo);
   if (fObra) filtered = filtered.filter(r => r.obra.toLowerCase().includes(fObra));
+  if (document.getElementById('f-notas')?.checked) filtered = filtered.filter(r => (r.notas || '').trim() !== '');
 
   filtered.sort((a,b) => a.fecha > b.fecha ? -1 : 1);
 
   document.getElementById('cd-count').textContent = filtered.length + ' / ' + regs.length + ' registros';
 
   const tbody = document.getElementById('cd-tabla');
+  // Si la tabla se repinta mientras se escribe una nota (p.ej. llega un parte nuevo),
+  // se conserva lo escrito y el cursor.
+  const notaActiva = document.activeElement;
+  const notaEnCurso = (notaActiva && notaActiva.classList && notaActiva.classList.contains('nota-input') && tbody.contains(notaActiva))
+    ? { key: notaActiva.dataset.key, value: notaActiva.value, pos: notaActiva.selectionStart } : null;
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">📅</div>Sin registros</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">📅</div>Sin registros</div></td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map(r => {
@@ -3495,12 +3554,17 @@ function renderControl() {
     const tipoInfo = TIPOS_OBRA.find(t => t.val === r.tipo);
     const badgeClass = r.tipo === 'tomas' ? 'badge-tomas' : (r.tipo === 'propia' ? 'badge-propia' : 'badge-otro');
     const badgeLabel = tipoInfo ? tipoInfo.label : r.tipo;
-    return `<tr>
+    const nota = (r.notas || '').trim();
+    return `<tr class="${nota ? 'fila-con-nota' : ''}">
       <td>${r.fecha}</td>
       <td>${r.trabajador}</td>
       <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
       <td>${r.obra}</td>
       <td>${r.horas}h</td>
+      <td class="td-nota">
+        <textarea class="nota-input${nota ? ' con-nota' : ''}" data-key="${r._supabaseId != null ? 's' + r._supabaseId : 'i' + r._idx}" rows="1" placeholder="＋ Escribir nota..." oninput="ajustarAltoNota(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.blur();}" onblur="guardarNota(${r._idx}, this)">${escaparHtml(nota)}</textarea>
+        <div class="nota-estado${r._notaPendiente ? ' aviso' : ''}">${r._notaPendiente ? '⚠ Guardada solo en este dispositivo' : ''}</div>
+      </td>
       <td style="color:var(--muted);font-size:12px;">Coste: ${fmt(coste)}${cobro !== null ? ' | Cobro: <span style="color:var(--tomas)">'+fmt(cobro)+'</span>' : ''}</td>
       <td style="display:flex;gap:4px;">
         <button class="btn btn-sm" style="background:rgba(91,141,238,.15);color:var(--blue);border:1px solid rgba(91,141,238,.3);" onclick="openEditModal(${r._idx})">✏️</button>
@@ -3508,6 +3572,93 @@ function renderControl() {
       </td>
     </tr>`;
   }).join('');
+  if (notaEnCurso) {
+    const el = Array.from(tbody.querySelectorAll('.nota-input')).find(t => t.dataset.key === notaEnCurso.key);
+    if (el) {
+      el.value = notaEnCurso.value;
+      el.focus();
+      try { el.setSelectionRange(notaEnCurso.pos, notaEnCurso.pos); } catch (e) {}
+    }
+  }
+  tbody.querySelectorAll('.nota-input').forEach(ajustarAltoNota);
+}
+
+// ========== NOTAS POR REGISTRO (Control Diario) ==========
+// Cada registro puede llevar una nota libre. Se guarda en este dispositivo y, si el
+// registro viene de Supabase, también en la columna "notas" de partes_diarios para
+// que se vea igual en el resto de dispositivos.
+function escaparHtml(t) {
+  return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function ajustarAltoNota(el) {
+  el.style.height = 'auto';
+  if (el.scrollHeight > 0) el.style.height = el.scrollHeight + 'px';
+}
+
+// Devuelve true si la nota quedó guardada en Supabase.
+async function subirNotaASupabase(registro) {
+  if (!sb || !registro || registro._supabaseId == null) return false;
+  try {
+    const { data, error } = await sb.from('partes_diarios')
+      .update({ notas: registro.notas ? registro.notas : null })
+      .eq('id', registro._supabaseId).select('id');
+    if (error) { console.warn('Nota no guardada en Supabase:', error.message); return false; }
+    return Array.isArray(data) && data.length > 0;
+  } catch (e) { return false; }
+}
+
+async function guardarNota(idx, el) {
+  const registro = getMesData().registros[idx];
+  if (!registro) return;
+  const texto = el.value.trim();
+  if (texto === (registro.notas || '')) return;
+  registro.notas = texto;
+  const estado = el.parentElement.querySelector('.nota-estado');
+  el.classList.toggle('con-nota', texto !== '');
+  el.closest('tr').classList.toggle('fila-con-nota', texto !== '');
+  if (registro._supabaseId != null) registro._notaPendiente = true;
+  saveData();
+  if (registro._supabaseId == null) {
+    if (estado) { estado.className = 'nota-estado ok'; estado.textContent = '✓ Guardada'; setTimeout(() => { estado.textContent = ''; }, 2500); }
+    return;
+  }
+  if (estado) { estado.className = 'nota-estado'; estado.textContent = 'Guardando...'; }
+  const ok = await subirNotaASupabase(registro);
+  if (ok) { delete registro._notaPendiente; saveData(); }
+  if (!estado || !estado.isConnected) return;
+  if (ok) {
+    estado.className = 'nota-estado ok'; estado.textContent = '✓ Guardada';
+    setTimeout(() => { if (estado.isConnected && estado.textContent === '✓ Guardada') estado.textContent = ''; }, 2500);
+  } else {
+    estado.className = 'nota-estado aviso'; estado.textContent = '⚠ Guardada solo en este dispositivo';
+  }
+}
+
+// Al sincronizar: trae las notas escritas en otros dispositivos y sube las que
+// quedaron pendientes en este. Devuelve true si cambió algo en local.
+async function sincronizarNotas(rows) {
+  if (!rows || rows.length === 0 || !('notas' in rows[0])) return false; // la columna aún no existe
+  const porId = new Map(rows.map(r => [r.id, r]));
+  let cambios = false;
+  const pendientes = [];
+  Object.keys(DATA).forEach(mesKey => {
+    const mes = DATA[mesKey];
+    if (!mes || !Array.isArray(mes.registros)) return;
+    mes.registros.forEach(r => {
+      if (r._supabaseId == null || !porId.has(r._supabaseId)) return;
+      if (r._notaPendiente) { pendientes.push(r); return; }
+      const remota = (porId.get(r._supabaseId).notas || '').trim();
+      if ((r.notas || '') !== remota) { r.notas = remota; cambios = true; }
+    });
+  });
+  for (const r of pendientes) {
+    const ok = await subirNotaASupabase(r);
+    if (!ok) break; // sin permiso o sin conexión: se reintenta en la próxima sincronización
+    delete r._notaPendiente;
+    cambios = true;
+  }
+  return cambios;
 }
 
 function openEditModal(idx) {
@@ -3530,6 +3681,7 @@ function closeEditModal() {
 function saveEdit() {
   const idx = parseInt(document.getElementById('edit-idx').value);
   const regs = getMesData().registros;
+  const notaPrevia = (regs[idx] && regs[idx].notas) || '';
   regs[idx] = {
     fecha: document.getElementById('edit-fecha').value,
     trabajador: document.getElementById('edit-trabajador').value,
@@ -3537,6 +3689,7 @@ function saveEdit() {
     obra: normalizarObra(document.getElementById('edit-obra').value),
     horas: parseFloat(document.getElementById('edit-horas').value)
   };
+  if (notaPrevia) regs[idx].notas = notaPrevia;
   saveData();
   closeEditModal();
   renderControl();
@@ -3574,7 +3727,7 @@ function toggleObra() {
 }
 
 // ========== NUEVO PARTE (multi-trabajador, escribe directo en Supabase) ==========
-const NP_TRABAJADORES = ['Raidel','Daniela','Freddy','Pepe','Pocholo','Jesús','Carlos nuevo'];
+const NP_TRABAJADORES = ['Raidel','Daniela','Freddy','Pepe','Pocholo','Jesús','Carlos nuevo','Carlos'];
 let npSelectedWorkers = [];
 let npHoras = {};
 let npProgreso = 'Avanzando bien';
