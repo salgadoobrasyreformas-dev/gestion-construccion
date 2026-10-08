@@ -2000,13 +2000,13 @@
   <!-- ========== CONTRATISTA JOSÉ DE CANGAS ========== -->
   <div id="page-mario" class="hidden">
     <div class="page-header">
-      <div><div class="page-title">CONTRATISTA JOSÉ DE CANGAS</div><div class="page-subtitle">180 € por día/hombre · Resumen mensual</div></div>
+      <div><div class="page-title">CONTRATISTA JOSÉ DE CANGAS</div><div class="page-subtitle" id="mario-subtitle">180 € por día/hombre (8 h) · horas extra aparte · Resumen mensual</div></div>
     </div>
     <div class="cards-grid" id="mario-cards"></div>
     <div class="table-wrap" style="margin-bottom:20px;">
       <div class="table-header"><span class="table-title">Obras ejecutadas</span></div>
       <table>
-        <thead><tr><th>Obra</th><th>Días/Hombre</th><th>Trabajadores</th><th>Total €</th></tr></thead>
+        <thead><tr><th>Obra</th><th>Días (8 h)</th><th>Horas extra</th><th>Trabajadores</th><th>Total €</th></tr></thead>
         <tbody id="mario-tabla"></tbody>
       </table>
     </div>
@@ -3250,15 +3250,19 @@ function calcContratistaTotal(tipo, tarifa) {
   const regs = getRegistros().filter(r => r.tipo === tipo);
   const obras = {};
   regs.forEach(r => {
-    if (!obras[r.obra]) obras[r.obra] = { trabajadores: new Set(), diasHombre: 0, registros: [] };
+    if (!obras[r.obra]) obras[r.obra] = { trabajadores: new Set(), diasHombre: 0, diasBase: 0, horasExtra: 0, registros: [] };
     const diasHombre = r.horas / HORAS_DIA;
     obras[r.obra].diasHombre += diasHombre;
+    obras[r.obra].diasBase += Math.min(r.horas, HORAS_DIA) / HORAS_DIA;
+    obras[r.obra].horasExtra += Math.max(r.horas - HORAS_DIA, 0);
     obras[r.obra].trabajadores.add(r.trabajador);
     obras[r.obra].registros.push(r);
   });
   const result = Object.entries(obras).map(([nombre, data]) => ({
     nombre,
     diasHombre: data.diasHombre,
+    diasBase: data.diasBase,
+    horasExtra: data.horasExtra,
     trabajadores: [...data.trabajadores],
     total: data.diasHombre * tarifa
   }));
@@ -3274,6 +3278,10 @@ function renderContratistaPage(tipo, tarifa, prefix, colorCss) {
   const datos = calcContratistaTotal(tipo, tarifa);
   const regs = getRegistros().filter(r => r.tipo === tipo);
   const totalDias = regs.reduce((s, r) => s + r.horas / HORAS_DIA, 0);
+
+  // José de Cangas: el día son 8 h a la tarifa por día/hombre; lo que pase de 8 h
+  // en un día se cobra por hora (tarifa / 8). Se muestra desglosado.
+  if (tipo === 'mario') { renderContratistaConExtras(datos, tarifa, prefix, colorCss); return; }
 
   const cardsEl = document.getElementById(prefix + '-cards');
   if (cardsEl) cardsEl.innerHTML = `
@@ -3325,6 +3333,72 @@ function renderContratistaPage(tipo, tarifa, prefix, colorCss) {
         </table>`;
     }
   }
+}
+
+function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
+  const precioHora = tarifa / HORAS_DIA;
+  const h = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
+  const totalBase = datos.obras.reduce((s, o) => s + o.diasBase, 0);
+  const totalExtra = datos.obras.reduce((s, o) => s + o.horasExtra, 0);
+
+  const sub = document.getElementById(prefix + '-subtitle');
+  if (sub) sub.textContent = `${fmt(tarifa)} por día/hombre (8 h) · horas extra a ${fmt(precioHora)}/hora · Resumen mensual`;
+
+  const cardsEl = document.getElementById(prefix + '-cards');
+  if (cardsEl) cardsEl.innerHTML = `
+    <div class="card tomas" style="border-color:${colorCss}55;"><div class="label">Total a Cobrar</div><div class="value" style="color:${colorCss};">${fmt(datos.totalMes)}</div><div class="sub">este mes</div></div>
+    <div class="card"><div class="label">Días/Hombre (8 h)</div><div class="value">${h(totalBase)}</div><div class="sub">a ${fmt(tarifa)}/día = ${fmt(totalBase * tarifa)}</div></div>
+    <div class="card"><div class="label">Horas Extra</div><div class="value">${h(totalExtra)} h</div><div class="sub">a ${fmt(precioHora)}/hora = ${fmt(totalExtra * precioHora)}</div></div>
+    <div class="card"><div class="label">Obras Distintas</div><div class="value">${datos.obras.length}</div><div class="sub">${getMesLabel(mesActivo)}</div></div>
+  `;
+
+  const tbody = document.getElementById(prefix + '-tabla');
+  if (tbody) {
+    if (datos.obras.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="icon">🏗️</div>Sin obras registradas</div></td></tr>';
+    } else {
+      tbody.innerHTML = datos.obras.map(o => `
+        <tr>
+          <td><strong>${o.nombre}</strong></td>
+          <td>${h(o.diasBase)}</td>
+          <td>${o.horasExtra > 0 ? h(o.horasExtra) + ' h' : '—'}</td>
+          <td>${o.trabajadores.join(', ')}</td>
+          <td style="font-family:'Bebas Neue';font-size:18px;color:${colorCss};">${fmt(o.total)}</td>
+        </tr>`).join('');
+    }
+  }
+
+  const factura = document.getElementById(prefix + '-factura');
+  if (!factura) return;
+  if (datos.obras.length === 0) {
+    factura.innerHTML = '<p style="color:var(--muted);font-size:13px;">Añade registros del Control Diario para generar la factura.</p>';
+    return;
+  }
+  const fila = (desc, cant, precio, total) => `<tr style="border-top:1px solid var(--border);">
+              <td style="padding:10px 0;">${desc}</td>
+              <td style="padding:10px 8px;text-align:right;">${cant}</td>
+              <td style="padding:10px 8px;text-align:right;">${precio}</td>
+              <td style="padding:10px 8px;text-align:right;font-weight:600;">${total}</td>
+            </tr>`;
+  factura.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase;">
+            <th style="padding:8px 0;text-align:left;">Descripción</th>
+            <th style="padding:8px;text-align:right;">Cantidad</th>
+            <th style="padding:8px;text-align:right;">Precio</th>
+            <th style="padding:8px;text-align:right;">Total</th>
+          </tr></thead>
+          <tbody>
+            ${datos.obras.map(o =>
+              fila(`${o.nombre} · jornadas de 8 h`, `${h(o.diasBase)} ${o.diasBase === 1 ? 'día' : 'días'}`, `${fmt(tarifa)}/día`, fmt(o.diasBase * tarifa)) +
+              (o.horasExtra > 0 ? fila(`${o.nombre} · horas extra`, `${h(o.horasExtra)} h`, `${fmt(precioHora)}/hora`, fmt(o.horasExtra * precioHora)) : '')
+            ).join('')}
+          </tbody>
+          <tfoot><tr style="border-top:2px solid ${colorCss};">
+            <td colspan="3" style="padding:12px 0;font-weight:700;font-size:14px;">TOTAL ${getMesLabel(mesActivo).toUpperCase()}</td>
+            <td style="padding:12px 8px;text-align:right;font-family:'Bebas Neue';font-size:24px;color:${colorCss};">${fmt(datos.totalMes)}</td>
+          </tr></tfoot>
+        </table>`;
 }
 
 function calcWorkerCost(trabajador, horas) {
