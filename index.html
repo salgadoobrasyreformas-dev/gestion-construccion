@@ -2535,6 +2535,23 @@
   </div>
 
   <!-- MODAL EDICION -->
+  <div id="pagos-modal" class="modal-overlay hidden">
+    <div class="modal" style="width:560px;max-height:90vh;overflow-y:auto;">
+      <h3 id="pagos-titulo">💶 Pagos</h3>
+      <div id="pagos-resumen" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;"></div>
+      <div class="form-row">
+        <div><label>Fecha</label><input type="date" id="pago-fecha"></div>
+        <div><label>Importe (€)</label><input type="number" id="pago-importe" step="0.01" min="0" placeholder="ej: 200"></div>
+        <div><label>Nota (opcional)</label><input type="text" id="pago-nota" placeholder="ej: efectivo, bizum..."></div>
+      </div>
+      <button class="btn btn-primary" onclick="agregarPago()">＋ Añadir pago</button>
+      <div id="pagos-lista" style="margin-top:16px;"></div>
+      <div class="modal-btns">
+        <button class="btn" style="background:var(--surface2);color:var(--muted);" onclick="closePagosModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="edit-modal" class="modal-overlay hidden">
     <div class="modal">
       <h3>✏️ Editar Registro</h3>
@@ -4403,7 +4420,10 @@ function catLabel(cat) {
 // ========== RENDER TRABAJADORES ==========
 function renderTrabajadores() {
   const summary = calcWorkersSummary();
+  // Quien tenga pagos apuntados este mes aparece aunque no tenga horas
+  getPagos().forEach(pg => { if (!summary[pg.trabajador]) summary[pg.trabajador] = { horas: 0, horasTomas: 0, horasPropia: 0 }; });
   const entries = Object.entries(summary);
+  PAGOS_NOMBRES = entries.map(([w]) => w);
 
   // Coste total fijos (empleados siempre cuestan aunque no trabajen, pero mostramos solo los que registraron horas)
   let totalCoste = 0;
@@ -4422,9 +4442,15 @@ function renderTrabajadores() {
     return;
   }
 
-  detail.innerHTML = entries.map(([w, data]) => {
+  detail.innerHTML = entries.map(([w, data], i) => {
     const cfg = WORKERS_CONFIG[w] || { color: '#888', tipo: 'otro' };
     const coste = calcWorkerCost(w, data.horas);
+    const pagado = totalPagado(w);
+    const pendiente = coste - pagado;
+    const pagosInfo = pagado > 0
+      ? `<div style="font-size:12px;color:var(--green);">Pagado: ${fmt(pagado)}</div>
+         <div style="font-size:11px;color:${pendiente > 0.005 ? 'var(--tomas)' : 'var(--green)'};">${pendiente > 0.005 ? 'Pendiente: ' + fmt(pendiente) : (pendiente < -0.005 ? 'Pagado de más: ' + fmt(-pendiente) : '✓ Al día')}</div>`
+      : `<div style="font-size:11px;color:var(--muted);">Sin pagos apuntados</div>`;
     const tipo = cfg.tipo === 'empleado' ? 'Empleado fijo · Coste empresa 2.141,59€/mes' :
                  cfg.tipo === 'autonomo_soc' ? 'Autónomo societario' : `Autónomo externo · ${fmt(cfg.coste_hora*8)}/día`;
     return `<div class="worker-row">
@@ -4437,9 +4463,99 @@ function renderTrabajadores() {
         <div style="font-size:12px;color:var(--muted);">${data.horas}h total</div>
         <div style="font-size:11px;color:var(--muted);">Tomás: ${data.horasTomas}h · Propias: ${data.horasPropia}h</div>
       </div>
-      <div class="worker-cost" style="color:${cfg.color};">${fmt(coste)}</div>
+      <div style="text-align:right;margin-right:12px;min-width:150px;">${pagosInfo}</div>
+      <button class="btn btn-sm" style="background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.35);margin-right:12px;white-space:nowrap;" onclick="openPagosModal(${i})">💶 Pagos</button>
+      <div class="worker-cost" style="color:${cfg.color};min-width:90px;text-align:right;">${fmt(coste)}</div>
     </div>`;
   }).join('');
+}
+
+// ========== PAGOS A TRABAJADORES (apunte manual, por mes) ==========
+// Lista manual de lo que se le va pagando a cada trabajador en el mes activo.
+// Se guarda con el resto de datos del mes (en este dispositivo y en "Guardar copia").
+let PAGOS_NOMBRES = [];
+let pagosTrabajadorActual = null;
+
+function getPagos() {
+  const mes = getMesData();
+  if (!Array.isArray(mes.pagos)) mes.pagos = [];
+  return mes.pagos;
+}
+
+function totalPagado(trabajador) {
+  return getPagos().filter(pg => pg.trabajador === trabajador).reduce((s, pg) => s + (pg.importe || 0), 0);
+}
+
+function openPagosModal(i) {
+  pagosTrabajadorActual = PAGOS_NOMBRES[i];
+  if (!pagosTrabajadorActual) return;
+  document.getElementById('pago-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pago-importe').value = '';
+  document.getElementById('pago-nota').value = '';
+  renderPagosModal();
+  document.getElementById('pagos-modal').classList.remove('hidden');
+  document.getElementById('pago-importe').focus();
+}
+
+function closePagosModal() {
+  document.getElementById('pagos-modal').classList.add('hidden');
+  pagosTrabajadorActual = null;
+}
+
+function renderPagosModal() {
+  const w = pagosTrabajadorActual;
+  if (!w) return;
+  const horas = (calcWorkersSummary()[w] || { horas: 0 }).horas;
+  const ganado = calcWorkerCost(w, horas);
+  const pagado = totalPagado(w);
+  const pendiente = ganado - pagado;
+  document.getElementById('pagos-titulo').textContent = `💶 Pagos a ${w} · ${getMesLabel(mesActivo)}`;
+  const caja = (label, valor, color) => `<div style="background:var(--surface2);border-radius:6px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${label}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:${color};">${valor}</div>
+      </div>`;
+  document.getElementById('pagos-resumen').innerHTML =
+    caja(`Ganado (${horas}h)`, fmt(ganado), 'var(--text)') +
+    caja('Pagado', fmt(pagado), 'var(--green)') +
+    caja(pendiente < -0.005 ? 'Pagado de más' : 'Pendiente', fmt(Math.abs(pendiente)), pendiente > 0.005 ? 'var(--tomas)' : 'var(--green)');
+
+  const lista = getPagos().map((pg, idx) => ({ ...pg, _idx: idx })).filter(pg => pg.trabajador === w)
+    .sort((a, b) => a.fecha > b.fecha ? -1 : (a.fecha < b.fecha ? 1 : b._idx - a._idx));
+  document.getElementById('pagos-lista').innerHTML = lista.length === 0
+    ? '<p style="color:var(--muted);font-size:13px;">Todavía no hay pagos apuntados este mes.</p>'
+    : `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr><th style="padding:8px 0;">Fecha</th><th style="padding:8px;text-align:right;">Importe</th><th style="padding:8px;">Nota</th><th></th></tr></thead>
+        <tbody>${lista.map(pg => `<tr>
+          <td style="padding:8px 0;">${pg.fecha}</td>
+          <td style="padding:8px;text-align:right;font-weight:600;color:var(--green);">${fmt(pg.importe)}</td>
+          <td style="padding:8px;color:var(--muted);">${escaparHtml(pg.nota || '')}</td>
+          <td style="padding:8px 0;text-align:right;"><button class="btn btn-danger btn-sm" onclick="borrarPago(${pg._idx})">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+}
+
+function agregarPago() {
+  const w = pagosTrabajadorActual;
+  if (!w) return;
+  const fecha = document.getElementById('pago-fecha').value;
+  const importe = parseFloat(document.getElementById('pago-importe').value);
+  const nota = document.getElementById('pago-nota').value.trim();
+  if (!fecha) { alert('Indica la fecha del pago'); return; }
+  if (isNaN(importe) || importe <= 0) { alert('Indica el importe pagado'); return; }
+  getPagos().push({ trabajador: w, fecha, importe: Math.round(importe * 100) / 100, nota });
+  saveData();
+  document.getElementById('pago-importe').value = '';
+  document.getElementById('pago-nota').value = '';
+  renderPagosModal();
+  renderTrabajadores();
+}
+
+function borrarPago(idx) {
+  if (!confirm('¿Eliminar este pago?')) return;
+  getPagos().splice(idx, 1);
+  saveData();
+  renderPagosModal();
+  renderTrabajadores();
 }
 
 // ========== UTILS ==========
