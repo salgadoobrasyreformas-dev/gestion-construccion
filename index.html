@@ -2033,6 +2033,18 @@
       <h3 style="color:var(--roberto);">📄 Factura del mes</h3>
       <div id="roberto-factura"></div>
     </div>
+    <div class="form-section" style="margin-top:20px;">
+      <h3 style="color:var(--roberto);">💶 Pagos de Roberto · lo cobrado y lo pendiente</h3>
+      <p style="color:var(--muted);font-size:12px;margin:-4px 0 14px;">Suma lo trabajado de todos los meses y le resta lo que te va pagando.</p>
+      <div id="roberto-cobros-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px;"></div>
+      <div class="form-row">
+        <div><label>Fecha</label><input type="date" id="roberto-cobro-fecha"></div>
+        <div><label>Importe (€)</label><input type="number" id="roberto-cobro-importe" step="0.01" min="0" placeholder="ej: 500"></div>
+        <div><label>Nota (opcional)</label><input type="text" id="roberto-cobro-nota" placeholder="ej: transferencia, efectivo..."></div>
+      </div>
+      <button class="btn btn-primary" onclick="agregarCobroCliente('roberto')">＋ Añadir pago</button>
+      <div id="roberto-cobros-lista" style="margin-top:16px;"></div>
+    </div>
   </div>
 
   <!-- ========== OBRAS PROPIAS ========== -->
@@ -3184,7 +3196,7 @@ function renderPage(page) {
   if (page === 'tomas') renderTomas();
   if (page === 'granjas') renderContratistaPage('granjas', TARIFA_GRANJAS, 'granjas', 'var(--granjas)');
   if (page === 'mario') renderContratistaPage('mario', TARIFA_MARIO, 'mario', 'var(--mario)');
-  if (page === 'roberto') renderContratistaPage('roberto', TARIFA_ROBERTO, 'roberto', 'var(--roberto)');
+  if (page === 'roberto') { renderContratistaPage('roberto', TARIFA_ROBERTO, 'roberto', 'var(--roberto)'); renderCobrosCliente('roberto', TARIFA_ROBERTO); }
   if (page === 'obras') renderObras();
   if (page === 'banco') renderBanco();
   if (page === 'trabajadores') renderTrabajadores();
@@ -4556,6 +4568,81 @@ function borrarPago(idx) {
   saveData();
   renderPagosModal();
   renderTrabajadores();
+}
+
+// ========== PAGOS DE CLIENTES (Obra Roberto) ==========
+// Lo que el cliente va pagando, apuntado a mano. Es acumulado (no por mes):
+// pendiente = lo trabajado en TODOS los meses − todo lo pagado.
+// Se guarda en DATA.config.cobros[tipo] (este dispositivo y "Guardar copia").
+function getCobrosCliente(tipo) {
+  if (!DATA.config) DATA.config = {};
+  if (!DATA.config.cobros || typeof DATA.config.cobros !== 'object') DATA.config.cobros = {};
+  if (!Array.isArray(DATA.config.cobros[tipo])) DATA.config.cobros[tipo] = [];
+  return DATA.config.cobros[tipo];
+}
+
+function trabajadoPorMes(tipo, tarifa) {
+  return getMonthKeys().map(k => {
+    const regs = ((DATA[k] && DATA[k].registros) || []).filter(r => r.tipo === tipo);
+    const dias = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA, 0);
+    return { mes: k, dias, total: dias * tarifa };
+  }).filter(m => m.dias > 0);
+}
+
+function renderCobrosCliente(tipo, tarifa) {
+  const resumenEl = document.getElementById(tipo + '-cobros-resumen');
+  if (!resumenEl) return;
+  const fechaEl = document.getElementById(tipo + '-cobro-fecha');
+  if (fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+  const meses = trabajadoPorMes(tipo, tarifa);
+  const trabajado = meses.reduce((s, m) => s + m.total, 0);
+  const pagado = getCobrosCliente(tipo).reduce((s, c) => s + (c.importe || 0), 0);
+  const pendiente = trabajado - pagado;
+  const caja = (label, valor, color, sub) => `<div style="background:var(--surface2);border-radius:8px;padding:12px 14px;">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${label}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:${color};">${valor}</div>
+      <div style="font-size:11px;color:var(--muted);">${sub}</div>
+    </div>`;
+  resumenEl.innerHTML =
+    caja('Total trabajado', fmt(trabajado), 'var(--text)', meses.length ? meses.map(m => getMesLabel(m.mes) + ': ' + fmt(m.total)).join(' · ') : 'sin jornadas') +
+    caja('Pagado', fmt(pagado), 'var(--green)', getCobrosCliente(tipo).length + ' pagos') +
+    caja(pendiente < -0.005 ? 'Pagado de más' : 'Pendiente', fmt(Math.abs(pendiente)), pendiente > 0.005 ? 'var(--tomas)' : 'var(--green)', pendiente > 0.005 ? 'falta por cobrar' : (pendiente < -0.005 ? 'ha pagado más de lo trabajado' : '✓ al día'));
+
+  const lista = getCobrosCliente(tipo).map((c, idx) => ({ ...c, _idx: idx }))
+    .sort((a, b) => a.fecha > b.fecha ? -1 : (a.fecha < b.fecha ? 1 : b._idx - a._idx));
+  document.getElementById(tipo + '-cobros-lista').innerHTML = lista.length === 0
+    ? '<p style="color:var(--muted);font-size:13px;">Todavía no hay pagos apuntados.</p>'
+    : `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase;"><th style="padding:8px 0;text-align:left;">Fecha</th><th style="padding:8px;text-align:right;">Importe</th><th style="padding:8px;text-align:left;">Nota</th><th></th></tr></thead>
+        <tbody>${lista.map(c => `<tr style="border-top:1px solid var(--border);">
+          <td style="padding:8px 0;">${c.fecha}</td>
+          <td style="padding:8px;text-align:right;font-weight:600;color:var(--green);">${fmt(c.importe)}</td>
+          <td style="padding:8px;color:var(--muted);">${escaparHtml(c.nota || '')}</td>
+          <td style="padding:8px 0;text-align:right;"><button class="btn btn-danger btn-sm" onclick="borrarCobroCliente('${tipo}', ${c._idx})">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+}
+
+function tarifaDeTipo(tipo) { return tipo === 'roberto' ? TARIFA_ROBERTO : 0; }
+
+function agregarCobroCliente(tipo) {
+  const fecha = document.getElementById(tipo + '-cobro-fecha').value;
+  const importe = parseFloat(document.getElementById(tipo + '-cobro-importe').value);
+  const nota = document.getElementById(tipo + '-cobro-nota').value.trim();
+  if (!fecha) { alert('Indica la fecha del pago'); return; }
+  if (isNaN(importe) || importe <= 0) { alert('Indica el importe pagado'); return; }
+  getCobrosCliente(tipo).push({ fecha, importe: Math.round(importe * 100) / 100, nota });
+  saveData();
+  document.getElementById(tipo + '-cobro-importe').value = '';
+  document.getElementById(tipo + '-cobro-nota').value = '';
+  renderCobrosCliente(tipo, tarifaDeTipo(tipo));
+}
+
+function borrarCobroCliente(tipo, idx) {
+  if (!confirm('¿Eliminar este pago?')) return;
+  getCobrosCliente(tipo).splice(idx, 1);
+  saveData();
+  renderCobrosCliente(tipo, tarifaDeTipo(tipo));
 }
 
 // ========== UTILS ==========
