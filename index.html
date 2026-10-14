@@ -3193,9 +3193,9 @@ function renderAll() { renderPage('resumen'); }
 function renderPage(page) {
   if (page === 'resumen') renderResumen();
   if (page === 'control') renderControl();
-  if (page === 'tomas') renderTomas();
-  if (page === 'granjas') renderContratistaPage('granjas', TARIFA_GRANJAS, 'granjas', 'var(--granjas)');
-  if (page === 'mario') renderContratistaPage('mario', TARIFA_MARIO, 'mario', 'var(--mario)');
+  if (page === 'tomas') { renderTomas(); renderCobrosCliente('tomas', TARIFA_TOMAS); }
+  if (page === 'granjas') { renderContratistaPage('granjas', TARIFA_GRANJAS, 'granjas', 'var(--granjas)'); renderCobrosCliente('granjas', TARIFA_GRANJAS); }
+  if (page === 'mario') { renderContratistaPage('mario', TARIFA_MARIO, 'mario', 'var(--mario)'); renderCobrosCliente('mario', TARIFA_MARIO); }
   if (page === 'roberto') { renderContratistaPage('roberto', TARIFA_ROBERTO, 'roberto', 'var(--roberto)'); renderCobrosCliente('roberto', TARIFA_ROBERTO); }
   if (page === 'obras') renderObras();
   if (page === 'banco') renderBanco();
@@ -4570,7 +4570,7 @@ function borrarPago(idx) {
   renderTrabajadores();
 }
 
-// ========== PAGOS DE CLIENTES (Obra Roberto) ==========
+// ========== PAGOS DE CLIENTES (Tomás, Granjas, José de Cangas, Roberto) ==========
 // Lo que el cliente va pagando, apuntado a mano. Es acumulado (no por mes):
 // pendiente = lo trabajado en TODOS los meses − todo lo pagado.
 // Se guarda en DATA.config.cobros[tipo] (este dispositivo y "Guardar copia").
@@ -4589,7 +4589,38 @@ function trabajadoPorMes(tipo, tarifa) {
   }).filter(m => m.dias > 0);
 }
 
+const COBROS_CLIENTES = {
+  tomas:   { nombre: 'Tomás',          color: 'var(--tomas)' },
+  granjas: { nombre: 'Granjas Multif.', color: 'var(--granjas)' },
+  mario:   { nombre: 'José de Cangas', color: 'var(--mario)' },
+  roberto: { nombre: 'Roberto',        color: 'var(--roberto)' }
+};
+
+// Crea la sección de pagos al final de la página del cliente si aún no existe
+function asegurarSeccionCobros(tipo) {
+  if (document.getElementById(tipo + '-cobros-resumen')) return;
+  const pagina = document.getElementById('page-' + tipo);
+  const info = COBROS_CLIENTES[tipo];
+  if (!pagina || !info) return;
+  const div = document.createElement('div');
+  div.className = 'form-section';
+  div.style.marginTop = '20px';
+  div.innerHTML = `
+      <h3 style="color:${info.color};">💶 Pagos de ${info.nombre} · lo cobrado y lo pendiente</h3>
+      <p style="color:var(--muted);font-size:12px;margin:-4px 0 14px;">Suma lo trabajado de todos los meses y le resta lo que te va pagando.</p>
+      <div id="${tipo}-cobros-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px;"></div>
+      <div class="form-row">
+        <div><label>Fecha</label><input type="date" id="${tipo}-cobro-fecha"></div>
+        <div><label>Importe (€)</label><input type="number" id="${tipo}-cobro-importe" step="0.01" min="0" placeholder="ej: 500"></div>
+        <div><label>Nota (opcional)</label><input type="text" id="${tipo}-cobro-nota" placeholder="ej: transferencia, efectivo..."></div>
+      </div>
+      <button class="btn btn-primary" onclick="agregarCobroCliente('${tipo}')">＋ Añadir pago</button>
+      <div id="${tipo}-cobros-lista" style="margin-top:16px;"></div>`;
+  pagina.appendChild(div);
+}
+
 function renderCobrosCliente(tipo, tarifa) {
+  asegurarSeccionCobros(tipo);
   const resumenEl = document.getElementById(tipo + '-cobros-resumen');
   if (!resumenEl) return;
   const fechaEl = document.getElementById(tipo + '-cobro-fecha');
@@ -4623,7 +4654,9 @@ function renderCobrosCliente(tipo, tarifa) {
       </table>`;
 }
 
-function tarifaDeTipo(tipo) { return tipo === 'roberto' ? TARIFA_ROBERTO : 0; }
+function tarifaDeTipo(tipo) {
+  return { tomas: TARIFA_TOMAS, granjas: TARIFA_GRANJAS, mario: TARIFA_MARIO, roberto: TARIFA_ROBERTO }[tipo] || 0;
+}
 
 function agregarCobroCliente(tipo) {
   const fecha = document.getElementById(tipo + '-cobro-fecha').value;
