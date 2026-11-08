@@ -2627,6 +2627,16 @@ let SALARIO_RAIDEL = 3000;
 let SALARIO_DANIELA = 1500;
 const HORAS_DIA = 8;
 
+// ===== Tarifas especiales por obra =====
+// Obra de Aldán (Contratista José de Cangas): se cobra a 250 €/día y Carlos cobra 220 €/día.
+function _sinAcentos(t) { return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function esObraAldan(tipo, obra) { return tipo === 'mario' && _sinAcentos(obra).includes('aldan'); }
+const TARIFA_ALDAN_CLIENTE = 250;   // €/día que se cobra al contratista en Aldán
+const TARIFA_ALDAN_CARLOS = 220;    // €/día que se le paga a Carlos en Aldán
+function tarifaClienteRegistro(r, tarifaBase) {
+  return esObraAldan(r.tipo, r.obra) ? TARIFA_ALDAN_CLIENTE : tarifaBase;
+}
+
 const WORKERS_CONFIG = {
   'Raidel':   { tipo: 'autonomo_soc', coste_hora: SALARIO_RAIDEL / (22*8), color: '#e8b84b' },
   'Daniela':  { tipo: 'autonomo_soc', coste_hora: SALARIO_DANIELA / (22*8), color: '#5b8dee' },
@@ -3279,8 +3289,9 @@ function calcContratistaTotal(tipo, tarifa) {
   const regs = getRegistros().filter(r => r.tipo === tipo);
   const obras = {};
   regs.forEach(r => {
-    if (!obras[r.obra]) obras[r.obra] = { trabajadores: new Set(), diasHombre: 0, diasBase: 0, horasExtra: 0, registros: [] };
+    if (!obras[r.obra]) obras[r.obra] = { trabajadores: new Set(), diasHombre: 0, diasBase: 0, horasExtra: 0, registros: [], total: 0, tarifa: tarifaClienteRegistro(r, tarifa) };
     const diasHombre = r.horas / HORAS_DIA;
+    obras[r.obra].total += diasHombre * tarifaClienteRegistro(r, tarifa);
     obras[r.obra].diasHombre += diasHombre;
     obras[r.obra].diasBase += Math.min(r.horas, HORAS_DIA) / HORAS_DIA;
     obras[r.obra].horasExtra += Math.max(r.horas - HORAS_DIA, 0);
@@ -3293,7 +3304,8 @@ function calcContratistaTotal(tipo, tarifa) {
     diasBase: data.diasBase,
     horasExtra: data.horasExtra,
     trabajadores: [...data.trabajadores],
-    total: data.diasHombre * tarifa
+    tarifa: data.tarifa,
+    total: data.total
   }));
   const totalMes = result.reduce((s, o) => s + o.total, 0);
   return { obras: result, totalMes };
@@ -3351,7 +3363,7 @@ function renderContratistaPage(tipo, tarifa, prefix, colorCss) {
             ${datos.obras.map(o => `<tr style="border-top:1px solid var(--border);">
               <td style="padding:10px 0;">${o.nombre}</td>
               <td style="padding:10px 8px;text-align:right;">${o.diasHombre.toFixed(2)}</td>
-              <td style="padding:10px 8px;text-align:right;">${fmt(tarifa)}</td>
+              <td style="padding:10px 8px;text-align:right;">${fmt(o.tarifa)}</td>
               <td style="padding:10px 8px;text-align:right;font-weight:600;">${fmt(o.total)}</td>
             </tr>`).join('')}
           </tbody>
@@ -3369,6 +3381,9 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
   const h = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
   const totalBase = datos.obras.reduce((s, o) => s + o.diasBase, 0);
   const totalExtra = datos.obras.reduce((s, o) => s + o.horasExtra, 0);
+  const importeBase = datos.obras.reduce((s, o) => s + o.diasBase * o.tarifa, 0);
+  const importeExtra = datos.obras.reduce((s, o) => s + o.horasExtra * o.tarifa / HORAS_DIA, 0);
+  const hayEspecial = datos.obras.some(o => o.tarifa !== tarifa);
 
   const sub = document.getElementById(prefix + '-subtitle');
   if (sub) sub.textContent = `${fmt(tarifa)} por día/hombre (8 h) · horas extra a ${fmt(precioHora)}/hora · Resumen mensual`;
@@ -3376,8 +3391,8 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
   const cardsEl = document.getElementById(prefix + '-cards');
   if (cardsEl) cardsEl.innerHTML = `
     <div class="card tomas" style="border-color:${colorCss}55;"><div class="label">Total a Cobrar</div><div class="value" style="color:${colorCss};">${fmt(datos.totalMes)}</div><div class="sub">este mes</div></div>
-    <div class="card"><div class="label">Días/Hombre (8 h)</div><div class="value">${h(totalBase)}</div><div class="sub">a ${fmt(tarifa)}/día = ${fmt(totalBase * tarifa)}</div></div>
-    <div class="card"><div class="label">Horas Extra</div><div class="value">${h(totalExtra)} h</div><div class="sub">a ${fmt(precioHora)}/hora = ${fmt(totalExtra * precioHora)}</div></div>
+    <div class="card"><div class="label">Días/Hombre (8 h)</div><div class="value">${h(totalBase)}</div><div class="sub">${hayEspecial ? 'tarifas por obra' : 'a ' + fmt(tarifa) + '/día'} = ${fmt(importeBase)}</div></div>
+    <div class="card"><div class="label">Horas Extra</div><div class="value">${h(totalExtra)} h</div><div class="sub">${hayEspecial ? 'tarifas por obra' : 'a ' + fmt(precioHora) + '/hora'} = ${fmt(importeExtra)}</div></div>
     <div class="card"><div class="label">Obras Distintas</div><div class="value">${datos.obras.length}</div><div class="sub">${getMesLabel(mesActivo)}</div></div>
   `;
 
@@ -3419,8 +3434,8 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
           </tr></thead>
           <tbody>
             ${datos.obras.map(o =>
-              fila(`${o.nombre} · jornadas de 8 h`, `${h(o.diasBase)} ${o.diasBase === 1 ? 'día' : 'días'}`, `${fmt(tarifa)}/día`, fmt(o.diasBase * tarifa)) +
-              (o.horasExtra > 0 ? fila(`${o.nombre} · horas extra`, `${h(o.horasExtra)} h`, `${fmt(precioHora)}/hora`, fmt(o.horasExtra * precioHora)) : '')
+              fila(`${o.nombre} · jornadas de 8 h`, `${h(o.diasBase)} ${o.diasBase === 1 ? 'día' : 'días'}`, `${fmt(o.tarifa)}/día`, fmt(o.diasBase * o.tarifa)) +
+              (o.horasExtra > 0 ? fila(`${o.nombre} · horas extra`, `${h(o.horasExtra)} h`, `${fmt(o.tarifa / HORAS_DIA)}/hora`, fmt(o.horasExtra * o.tarifa / HORAS_DIA)) : '')
             ).join('')}
           </tbody>
           <tfoot><tr style="border-top:2px solid ${colorCss};">
@@ -3430,9 +3445,10 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
         </table>`;
 }
 
-function calcWorkerCost(trabajador, horas) {
+function calcWorkerCost(trabajador, horas, tipo, obra) {
   const cfg = WORKERS_CONFIG[trabajador];
   if (!cfg) return 0;
+  if (trabajador === 'Carlos' && esObraAldan(tipo, obra)) return horas * TARIFA_ALDAN_CARLOS / HORAS_DIA;
   // Todos usan coste_hora del config, que ya está correctamente definido para cada tipo
   return horas * cfg.coste_hora;
 }
@@ -3441,8 +3457,9 @@ function calcWorkersSummary() {
   const regs = getRegistros();
   const summary = {};
   regs.forEach(r => {
-    if (!summary[r.trabajador]) summary[r.trabajador] = { horas: 0, horasTomas: 0, horasPropia: 0 };
+    if (!summary[r.trabajador]) summary[r.trabajador] = { horas: 0, horasTomas: 0, horasPropia: 0, coste: 0 };
     summary[r.trabajador].horas += r.horas;
+    summary[r.trabajador].coste += calcWorkerCost(r.trabajador, r.horas, r.tipo, r.obra);
     if (r.tipo === 'tomas') summary[r.trabajador].horasTomas += r.horas;
     else summary[r.trabajador].horasPropia += r.horas;
   });
@@ -3458,7 +3475,7 @@ function calcObrasCost() {
     if (!obras[r.obra].trabajadores[r.trabajador]) obras[r.obra].trabajadores[r.trabajador] = 0;
     obras[r.obra].trabajadores[r.trabajador] += r.horas;
     obras[r.obra].totalHoras += r.horas;
-    obras[r.obra].costeMO += calcWorkerCost(r.trabajador, r.horas);
+    obras[r.obra].costeMO += calcWorkerCost(r.trabajador, r.horas, r.tipo, r.obra);
   });
   return obras;
 }
@@ -3496,7 +3513,7 @@ function renderResumen() {
   // Coste mano de obra total
   let costeMO = 0;
   Object.entries(workersSummary).forEach(([w, data]) => {
-    costeMO += calcWorkerCost(w, data.horas);
+    costeMO += (data.coste || 0);
   });
 
   // Beneficio obras propias
@@ -3567,7 +3584,7 @@ function renderResumen() {
   } else {
     workersDiv.innerHTML = Object.entries(workersSummary).map(([w, data]) => {
       const cfg = WORKERS_CONFIG[w] || { color: '#888' };
-      const coste = calcWorkerCost(w, data.horas);
+      const coste = (data.coste || 0);
       const tipo = cfg.tipo === 'empleado' ? 'Empleado' : cfg.tipo === 'autonomo_soc' ? 'Aut. Soc.' : 'Autónomo';
       return `<div class="worker-row">
         <div class="worker-avatar" style="background:${cfg.color}22;color:${cfg.color};">${w[0]}</div>
@@ -3652,7 +3669,7 @@ function renderControl() {
     return;
   }
   tbody.innerHTML = filtered.map(r => {
-    const coste = calcWorkerCost(r.trabajador, r.horas);
+    const coste = calcWorkerCost(r.trabajador, r.horas, r.tipo, r.obra);
     const cobro = r.tipo === 'tomas' ? (r.horas/HORAS_DIA)*TARIFA_TOMAS : null;
     const tipoInfo = TIPOS_OBRA.find(t => t.val === r.tipo);
     const badgeClass = r.tipo === 'tomas' ? 'badge-tomas' : (r.tipo === 'propia' ? 'badge-propia' : 'badge-otro');
@@ -4433,13 +4450,13 @@ function catLabel(cat) {
 function renderTrabajadores() {
   const summary = calcWorkersSummary();
   // Quien tenga pagos apuntados este mes aparece aunque no tenga horas
-  getPagos().forEach(pg => { if (!summary[pg.trabajador]) summary[pg.trabajador] = { horas: 0, horasTomas: 0, horasPropia: 0 }; });
+  getPagos().forEach(pg => { if (!summary[pg.trabajador]) summary[pg.trabajador] = { horas: 0, horasTomas: 0, horasPropia: 0, coste: 0 }; });
   const entries = Object.entries(summary);
   PAGOS_NOMBRES = entries.map(([w]) => w);
 
   // Coste total fijos (empleados siempre cuestan aunque no trabajen, pero mostramos solo los que registraron horas)
   let totalCoste = 0;
-  entries.forEach(([w, data]) => totalCoste += calcWorkerCost(w, data.horas));
+  entries.forEach(([w, data]) => totalCoste += (data.coste || 0));
 
   document.getElementById('workers-cards').innerHTML = `
     <div class="card"><div class="label">Trabajadores Activos</div><div class="value">${entries.length}</div><div class="sub">este mes</div></div>
@@ -4456,7 +4473,7 @@ function renderTrabajadores() {
 
   detail.innerHTML = entries.map(([w, data], i) => {
     const cfg = WORKERS_CONFIG[w] || { color: '#888', tipo: 'otro' };
-    const coste = calcWorkerCost(w, data.horas);
+    const coste = (data.coste || 0);
     const pagado = totalPagado(w);
     const pendiente = coste - pagado;
     const pagosInfo = pagado > 0
@@ -4517,8 +4534,9 @@ function closePagosModal() {
 function renderPagosModal() {
   const w = pagosTrabajadorActual;
   if (!w) return;
-  const horas = (calcWorkersSummary()[w] || { horas: 0 }).horas;
-  const ganado = calcWorkerCost(w, horas);
+  const _sum = calcWorkersSummary()[w] || { horas: 0, coste: 0 };
+  const horas = _sum.horas;
+  const ganado = _sum.coste || 0;
   const pagado = totalPagado(w);
   const pendiente = ganado - pagado;
   document.getElementById('pagos-titulo').textContent = `💶 Pagos a ${w} · ${getMesLabel(mesActivo)}`;
@@ -4585,7 +4603,8 @@ function trabajadoPorMes(tipo, tarifa) {
   return getMonthKeys().map(k => {
     const regs = ((DATA[k] && DATA[k].registros) || []).filter(r => r.tipo === tipo);
     const dias = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA, 0);
-    return { mes: k, dias, total: dias * tarifa };
+    const total = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA * tarifaClienteRegistro(r, tarifa), 0);
+    return { mes: k, dias, total };
   }).filter(m => m.dias > 0);
 }
 
