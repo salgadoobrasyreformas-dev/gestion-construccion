@@ -2631,10 +2631,15 @@ const HORAS_DIA = 8;
 // Obra de Aldán (Contratista José de Cangas): se cobra a 250 €/día y Carlos cobra 220 €/día.
 function _sinAcentos(t) { return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function esObraAldan(tipo, obra) { return tipo === 'mario' && _sinAcentos(obra).includes('aldan'); }
-const TARIFA_ALDAN_CLIENTE = 250;   // €/día que se cobra al contratista en Aldán
+const TARIFA_ALDAN_DESPLAZAMIENTO = 70; // € por día trabajado en Aldán (desplazamiento, combustible...), aparte de la jornada
 const TARIFA_ALDAN_CARLOS = 220;    // €/día que se le paga a Carlos en Aldán
 function tarifaClienteRegistro(r, tarifaBase) {
-  return esObraAldan(r.tipo, r.obra) ? TARIFA_ALDAN_CLIENTE : tarifaBase;
+  return tarifaBase; // Aldán: jornada normal; el desplazamiento se suma aparte por día
+}
+// Plus de desplazamiento: 70 € por cada día distinto trabajado en Aldán
+function desplazamientoAldan(regs) {
+  const dias = new Set(regs.filter(r => esObraAldan(r.tipo, r.obra)).map(r => r.fecha));
+  return { dias: dias.size, importe: dias.size * TARIFA_ALDAN_DESPLAZAMIENTO };
 }
 
 const WORKERS_CONFIG = {
@@ -3307,6 +3312,10 @@ function calcContratistaTotal(tipo, tarifa) {
     tarifa: data.tarifa,
     total: data.total
   }));
+  result.forEach(o => {
+    const d = desplazamientoAldan(obras[o.nombre].registros);
+    o.diasDesplaz = d.dias; o.desplaz = d.importe; o.total += d.importe;
+  });
   const totalMes = result.reduce((s, o) => s + o.total, 0);
   return { obras: result, totalMes };
 }
@@ -3384,6 +3393,7 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
   const importeBase = datos.obras.reduce((s, o) => s + o.diasBase * o.tarifa, 0);
   const importeExtra = datos.obras.reduce((s, o) => s + o.horasExtra * o.tarifa / HORAS_DIA, 0);
   const hayEspecial = datos.obras.some(o => o.tarifa !== tarifa);
+  const totalDesplaz = datos.obras.reduce((s, o) => s + (o.desplaz || 0), 0);
 
   const sub = document.getElementById(prefix + '-subtitle');
   if (sub) sub.textContent = `${fmt(tarifa)} por día/hombre (8 h) · horas extra a ${fmt(precioHora)}/hora · Resumen mensual`;
@@ -3393,6 +3403,7 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
     <div class="card tomas" style="border-color:${colorCss}55;"><div class="label">Total a Cobrar</div><div class="value" style="color:${colorCss};">${fmt(datos.totalMes)}</div><div class="sub">este mes</div></div>
     <div class="card"><div class="label">Días/Hombre (8 h)</div><div class="value">${h(totalBase)}</div><div class="sub">${hayEspecial ? 'tarifas por obra' : 'a ' + fmt(tarifa) + '/día'} = ${fmt(importeBase)}</div></div>
     <div class="card"><div class="label">Horas Extra</div><div class="value">${h(totalExtra)} h</div><div class="sub">${hayEspecial ? 'tarifas por obra' : 'a ' + fmt(precioHora) + '/hora'} = ${fmt(importeExtra)}</div></div>
+    ${totalDesplaz > 0 ? `<div class="card"><div class="label">Desplazamiento Aldán</div><div class="value">${fmt(totalDesplaz)}</div><div class="sub">${fmt(TARIFA_ALDAN_DESPLAZAMIENTO)} por día</div></div>` : ''}
     <div class="card"><div class="label">Obras Distintas</div><div class="value">${datos.obras.length}</div><div class="sub">${getMesLabel(mesActivo)}</div></div>
   `;
 
@@ -3435,7 +3446,8 @@ function renderContratistaConExtras(datos, tarifa, prefix, colorCss) {
           <tbody>
             ${datos.obras.map(o =>
               fila(`${o.nombre} · jornadas de 8 h`, `${h(o.diasBase)} ${o.diasBase === 1 ? 'día' : 'días'}`, `${fmt(o.tarifa)}/día`, fmt(o.diasBase * o.tarifa)) +
-              (o.horasExtra > 0 ? fila(`${o.nombre} · horas extra`, `${h(o.horasExtra)} h`, `${fmt(o.tarifa / HORAS_DIA)}/hora`, fmt(o.horasExtra * o.tarifa / HORAS_DIA)) : '')
+              (o.horasExtra > 0 ? fila(`${o.nombre} · horas extra`, `${h(o.horasExtra)} h`, `${fmt(o.tarifa / HORAS_DIA)}/hora`, fmt(o.horasExtra * o.tarifa / HORAS_DIA)) : '') +
+              (o.desplaz > 0 ? fila(`${o.nombre} · desplazamiento`, `${o.diasDesplaz} ${o.diasDesplaz === 1 ? 'día' : 'días'}`, `${fmt(TARIFA_ALDAN_DESPLAZAMIENTO)}/día`, fmt(o.desplaz)) : '')
             ).join('')}
           </tbody>
           <tfoot><tr style="border-top:2px solid ${colorCss};">
@@ -4603,7 +4615,7 @@ function trabajadoPorMes(tipo, tarifa) {
   return getMonthKeys().map(k => {
     const regs = ((DATA[k] && DATA[k].registros) || []).filter(r => r.tipo === tipo);
     const dias = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA, 0);
-    const total = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA * tarifaClienteRegistro(r, tarifa), 0);
+    const total = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA * tarifaClienteRegistro(r, tarifa), 0) + desplazamientoAldan(regs).importe;
     return { mes: k, dias, total };
   }).filter(m => m.dias > 0);
 }
