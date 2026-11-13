@@ -2641,11 +2641,15 @@ const TRABAJADORES_CON_COCHE = ['raidel', 'carlos', 'jesus']; // los que llevan 
 function llevaCoche(trabajador) { return TRABAJADORES_CON_COCHE.includes(_sinAcentos(trabajador).trim()); }
 // Días de Aldán en los que fue al menos uno con coche
 function diasAldanConCoche(regs) {
-  return new Set(regs.filter(r => esObraAldan(r.tipo, r.obra) && llevaCoche(r.trabajador)).map(r => r.fecha));
+  return new Set(regs.filter(r => esObraAldan(r.tipo, r.obra) && (llevaCoche(r.trabajador) || !aldanReglaNueva(r))).map(r => r.fecha));
 }
 function esAldanSinCoche(r, diasConCoche) { return esObraAldan(r.tipo, r.obra) && !diasConCoche.has(r.fecha); }
+// Lo anterior al 09/11/2026 ya está cobrado con la regla vieja (180 €/hombre + 70 € todos los días):
+// la regla nueva (200 €/hombre, 70 € solo si va alguien con coche) se aplica desde esta fecha.
+const ALDAN_REGLA_NUEVA_DESDE = '2026-11-09';
+function aldanReglaNueva(r) { return (r.fecha || '') >= ALDAN_REGLA_NUEVA_DESDE; }
 function tarifaClienteRegistro(r, tarifaBase) {
-  return esObraAldan(r.tipo, r.obra) ? TARIFA_ALDAN_HOMBRE : tarifaBase;
+  return (esObraAldan(r.tipo, r.obra) && aldanReglaNueva(r)) ? TARIFA_ALDAN_HOMBRE : tarifaBase;
 }
 // Plus de desplazamiento: 70 € por cada día de Aldán en el que fue alguien con coche
 function desplazamientoAldan(regs) {
