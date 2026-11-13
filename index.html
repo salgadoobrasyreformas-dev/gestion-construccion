@@ -2629,14 +2629,14 @@ const HORAS_DIA = 8;
 
 // ===== Tarifas especiales por obra =====
 // Obra de Aldán (Contratista José de Cangas):
-//  - Si ese día va alguien con coche (Raidel, Carlos, Jesús): jornada normal (180 €/hombre) + 70 € de desplazamiento por día.
-//  - Si ese día no va nadie con coche: 200 €/hombre y sin los 70 €.
+//  - Siempre 200 €/hombre.
+//  - Si ese día va alguien con coche (Raidel, Carlos, Jesús): + 50 € de desplazamiento ese día.
 //  - A Carlos se le paga 220 €/día en Aldán.
 function _sinAcentos(t) { return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function esObraAldan(tipo, obra) { return tipo === 'mario' && _sinAcentos(obra).includes('aldan'); }
-const TARIFA_ALDAN_DESPLAZAMIENTO = 70; // € por día trabajado en Aldán (desplazamiento, combustible...), aparte de la jornada
+const TARIFA_ALDAN_DESPLAZAMIENTO = 50; // € por día trabajado en Aldán (desplazamiento, combustible...), aparte de la jornada
 const TARIFA_ALDAN_CARLOS = 220;    // €/día que se le paga a Carlos en Aldán
-const TARIFA_ALDAN_SIN_COCHE = 200;   // €/hombre en Aldán cuando ese día no va nadie con coche
+const TARIFA_ALDAN_HOMBRE = 200;   // €/hombre en Aldán (con o sin coche)
 const TRABAJADORES_CON_COCHE = ['raidel', 'carlos', 'jesus']; // los que llevan coche a Aldán
 function llevaCoche(trabajador) { return TRABAJADORES_CON_COCHE.includes(_sinAcentos(trabajador).trim()); }
 // Días de Aldán en los que fue al menos uno con coche
@@ -2644,10 +2644,10 @@ function diasAldanConCoche(regs) {
   return new Set(regs.filter(r => esObraAldan(r.tipo, r.obra) && llevaCoche(r.trabajador)).map(r => r.fecha));
 }
 function esAldanSinCoche(r, diasConCoche) { return esObraAldan(r.tipo, r.obra) && !diasConCoche.has(r.fecha); }
-function tarifaClienteRegistro(r, tarifaBase, diasConCoche) {
-  return (diasConCoche && esAldanSinCoche(r, diasConCoche)) ? TARIFA_ALDAN_SIN_COCHE : tarifaBase;
+function tarifaClienteRegistro(r, tarifaBase) {
+  return esObraAldan(r.tipo, r.obra) ? TARIFA_ALDAN_HOMBRE : tarifaBase;
 }
-// Plus de desplazamiento: 70 € por cada día de Aldán en el que fue alguien con coche
+// Plus de desplazamiento: 50 € por cada día de Aldán en el que fue alguien con coche
 function desplazamientoAldan(regs) {
   const dias = diasAldanConCoche(regs);
   return { dias: dias.size, importe: dias.size * TARIFA_ALDAN_DESPLAZAMIENTO };
@@ -3304,13 +3304,11 @@ function getObras() { return getMesData().obras || []; }
 function calcContratistaTotal(tipo, tarifa) {
   const regs = getRegistros().filter(r => r.tipo === tipo);
   const obras = {};
-  const diasCC = diasAldanConCoche(regs);
   regs.forEach(r => {
-    // Los días de Aldán sin coche van en una línea aparte (a 200 €/hombre)
-    const k = esAldanSinCoche(r, diasCC) ? r.obra + ' (sin coche)' : r.obra;
-    if (!obras[k]) obras[k] = { trabajadores: new Set(), diasHombre: 0, diasBase: 0, horasExtra: 0, registros: [], total: 0, tarifa: tarifaClienteRegistro(r, tarifa, diasCC) };
+    const k = r.obra;
+    if (!obras[k]) obras[k] = { trabajadores: new Set(), diasHombre: 0, diasBase: 0, horasExtra: 0, registros: [], total: 0, tarifa: tarifaClienteRegistro(r, tarifa) };
     const diasHombre = r.horas / HORAS_DIA;
-    obras[k].total += diasHombre * tarifaClienteRegistro(r, tarifa, diasCC);
+    obras[k].total += diasHombre * tarifaClienteRegistro(r, tarifa);
     obras[k].diasHombre += diasHombre;
     obras[k].diasBase += Math.min(r.horas, HORAS_DIA) / HORAS_DIA;
     obras[k].horasExtra += Math.max(r.horas - HORAS_DIA, 0);
@@ -4629,7 +4627,7 @@ function trabajadoPorMes(tipo, tarifa) {
   return getMonthKeys().map(k => {
     const regs = ((DATA[k] && DATA[k].registros) || []).filter(r => r.tipo === tipo);
     const dias = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA, 0);
-    const total = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA * tarifaClienteRegistro(r, tarifa, diasAldanConCoche(regs)), 0) + desplazamientoAldan(regs).importe;
+    const total = regs.reduce((s, r) => s + (r.horas || 0) / HORAS_DIA * tarifaClienteRegistro(r, tarifa), 0) + desplazamientoAldan(regs).importe;
     return { mes: k, dias, total };
   }).filter(m => m.dias > 0);
 }
