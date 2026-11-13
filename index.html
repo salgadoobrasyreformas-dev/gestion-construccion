@@ -2630,11 +2630,11 @@ const HORAS_DIA = 8;
 // ===== Tarifas especiales por obra =====
 // Obra de Aldán (Contratista José de Cangas):
 //  - Siempre 200 €/hombre.
-//  - Si ese día va alguien con coche (Raidel, Carlos, Jesús): + 50 € de desplazamiento ese día.
+//  - Si ese día va alguien con coche (Raidel, Carlos, Jesús): + 70 € de desplazamiento ese día.
 //  - A Carlos se le paga 220 €/día en Aldán.
 function _sinAcentos(t) { return (t || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function esObraAldan(tipo, obra) { return tipo === 'mario' && _sinAcentos(obra).includes('aldan'); }
-const TARIFA_ALDAN_DESPLAZAMIENTO = 50; // € por día trabajado en Aldán (desplazamiento, combustible...), aparte de la jornada
+const TARIFA_ALDAN_DESPLAZAMIENTO = 70; // € por día trabajado en Aldán (desplazamiento, combustible...), aparte de la jornada
 const TARIFA_ALDAN_CARLOS = 220;    // €/día que se le paga a Carlos en Aldán
 const TARIFA_ALDAN_HOMBRE = 200;   // €/hombre en Aldán (con o sin coche)
 const TRABAJADORES_CON_COCHE = ['raidel', 'carlos', 'jesus']; // los que llevan coche a Aldán
@@ -2647,7 +2647,7 @@ function esAldanSinCoche(r, diasConCoche) { return esObraAldan(r.tipo, r.obra) &
 function tarifaClienteRegistro(r, tarifaBase) {
   return esObraAldan(r.tipo, r.obra) ? TARIFA_ALDAN_HOMBRE : tarifaBase;
 }
-// Plus de desplazamiento: 50 € por cada día de Aldán en el que fue alguien con coche
+// Plus de desplazamiento: 70 € por cada día de Aldán en el que fue alguien con coche
 function desplazamientoAldan(regs) {
   const dias = diasAldanConCoche(regs);
   return { dias: dias.size, importe: dias.size * TARIFA_ALDAN_DESPLAZAMIENTO };
