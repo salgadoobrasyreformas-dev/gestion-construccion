@@ -1,5 +1,8 @@
 <html lang="es"><head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión Construcción</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=DM+Sans:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
@@ -2611,6 +2614,18 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+// ===== Auto-actualización: si hay una versión nueva publicada, recarga sola =====
+const APP_VERSION = '2026-11-13a';
+(async function comprobarVersionNueva() {
+  try {
+    const txt = await fetch(location.pathname + '?nc=' + Date.now(), { cache: 'no-store' }).then(r => r.text());
+    const m = txt.match(/const APP_VERSION = '([^']+)'/);
+    if (m && m[1] !== APP_VERSION && sessionStorage.getItem('app_recargada') !== m[1]) {
+      sessionStorage.setItem('app_recargada', m[1]);
+      location.replace(location.pathname + '?v=' + m[1]);
+    }
+  } catch (e) {}
+})();
 // ========== DATA STORE ==========
 let DATA = {};
 let mesActivo = '';
